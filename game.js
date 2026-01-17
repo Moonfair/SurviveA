@@ -4,7 +4,10 @@ let gameState = {
     currentEventIndex: 0, // 当前事件索引
     usedEvents: [], // 已使用的事件ID，防止重复
     isGameOver: false, // 是否游戏结束
-    customFlag: {}     // =====【FLAG新增】全局自定义Flag状态池，自动初始化=====
+    customFlag: {
+        loanCount: 0, // 数字型
+        // 其他保持false默认值
+    }     // =====【FLAG新增】全局自定义Flag状态池，自动初始化=====
 };
 
 // 初始化属性+FLAG初始化
@@ -40,7 +43,11 @@ function checkKillLine() {
         warnEl.style.display = "block";
         Object.keys(GAME_CONFIG.killLine.punish).forEach(key => {
             gameState.currentStatus[key] += GAME_CONFIG.killLine.punish[key];
-            gameState.currentStatus[key] = Math.max(GAME_CONFIG.minVal, Math.min(GAME_CONFIG.maxVal, gameState.currentStatus[key]));
+            if (key === 'money') {
+                gameState.currentStatus[key] = Math.max(0, gameState.currentStatus[key]);
+            } else {
+                gameState.currentStatus[key] = Math.max(GAME_CONFIG.minVal, Math.min(GAME_CONFIG.maxVal, gameState.currentStatus[key]));
+            }
         });
     } else {
         warnEl.style.display = "none";
@@ -66,10 +73,68 @@ function getRandomEvent() {
         const flagPass = hasTriggerFlag ? event.triggerFlag(gameState.customFlag, gameState.currentStatus) : true;
         return !isUsed && flagPass;
     });
+    if (availableEvents.length === 0) {
+        // 所有事件都不满足条件，显示debug信息
+        showEventPoolDebug();
+        // 重置事件池后递归重试
+        gameState.usedEvents = [];
+        return getRandomEvent();
+    }
     const randomIdx = Math.floor(Math.random() * availableEvents.length);
     const randomEvent = availableEvents[randomIdx];
     gameState.usedEvents.push(randomEvent.id);
     return randomEvent;
+}
+
+// 显示事件池Debug弹窗
+function showEventPoolDebug() {
+    const unusedUnmetEvents = EVENT_LIST.filter(event => {
+        const isUsed = gameState.usedEvents.includes(event.id);
+        const hasTriggerFlag = typeof event.triggerFlag === 'function';
+        const flagPass = hasTriggerFlag ? event.triggerFlag(gameState.customFlag, gameState.currentStatus) : true;
+        return !isUsed && !flagPass; // 未使用 + 不满足条件
+    });
+
+    let debugInfo = "🔴 【DEBUG】事件池已空\n\n";
+    debugInfo += `已使用事件: [${gameState.usedEvents.join(', ')}]\n`;
+    debugInfo += `总事件数: ${EVENT_LIST.length}\n\n`;
+    debugInfo += `未使用但不满足条件的事件 (${unusedUnmetEvents.length}个):\n`;
+    debugInfo += "─".repeat(50) + "\n";
+    
+    unusedUnmetEvents.forEach(event => {
+        debugInfo += `\n📌 事件ID: ${event.id}\n`;
+        debugInfo += `   标题: ${event.title}\n`;
+        debugInfo += `   触发条件: ${event.triggerFlag ? "有条件" : "无条件"}\n`;
+        if (event.triggerFlag) {
+            debugInfo += `   当前不满足: ${debugCheckTriggerFlag(event.triggerFlag)}\n`;
+        }
+    });
+    
+    debugInfo += "\n" + "─".repeat(50) + "\n";
+    debugInfo += "\n🔄 将重置事件池并继续游戏...\n";
+    debugInfo += `\n📊 当前属性值:\n`;
+    debugInfo += `   健康: ${gameState.currentStatus.health}\n`;
+    debugInfo += `   精神: ${gameState.currentStatus.spirit}\n`;
+    debugInfo += `   资金: ${gameState.currentStatus.money}\n`;
+    debugInfo += `   信用: ${gameState.currentStatus.credit}\n`;
+    debugInfo += `   人脉: ${gameState.currentStatus.social}\n`;
+    debugInfo += `   职业: ${gameState.currentStatus.job}\n`;
+    debugInfo += `\n🚩 当前Flag值:\n`;
+    Object.keys(gameState.customFlag).forEach(key => {
+        debugInfo += `   ${key}: ${gameState.customFlag[key]}\n`;
+    });
+
+    alert(debugInfo);
+}
+
+// 辅助函数：检查触发条件未满足的原因
+function debugCheckTriggerFlag(triggerFlagFunc) {
+    try {
+        const result = triggerFlagFunc(gameState.customFlag, gameState.currentStatus);
+        return result ? "满足条件" : "条件不满足";
+    } catch (e) {
+        return `错误: ${e.message}`;
+    }
 }
 
 // 渲染事件和选项
@@ -89,10 +154,18 @@ function renderEvent(event) {
 
 // 处理选项点击：属性增减 + FLAG设置 + 流程推进
 function handleOption(option) {
-    // 属性增减逻辑不变
-    Object.keys(option.effect).forEach(key => {
-        gameState.currentStatus[key] += option.effect[key];
-        gameState.currentStatus[key] = Math.max(GAME_CONFIG.minVal, Math.min(GAME_CONFIG.maxVal, gameState.currentStatus[key]));
+    // 如果effect是函数，则动态执行
+    const finalEffect = typeof option.effect === 'function' 
+        ? option.effect() 
+        : option.effect;
+    
+    Object.keys(finalEffect).forEach(key => {
+        gameState.currentStatus[key] += finalEffect[key];
+        if (key === 'money') {
+            gameState.currentStatus[key] = Math.max(0, gameState.currentStatus[key]);
+        } else {
+            gameState.currentStatus[key] = Math.max(GAME_CONFIG.minVal, Math.min(GAME_CONFIG.maxVal, gameState.currentStatus[key]));
+        }
     });
     // =====【FLAG新增】执行当前选项的Flag标记=====
     setCustomFlag(option.setFlag);
