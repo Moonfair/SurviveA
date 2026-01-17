@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <!-- 核心适配：手机端必备，禁止缩放+自适应屏幕 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>美国生存模拟器 - 牢A版</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <!-- 游戏标题区 -->
+        <div class="game-title">🇺🇸 美国生存模拟器 🇺🇸</div>
+        <div class="game-subtitle">牢A · 14万美金斩杀线 | 健康·精神·资金 三重考验</div>
+
+        <!-- 属性状态栏 核心区 -->
+        <div class="status-box">
+            <div class="status-item" id="health"></div>
+            <div class="status-item" id="spirit"></div>
+            <div class="status-item" id="money"></div>
+            <div class="status-item" id="credit"></div>
+            <div class="status-item" id="social"></div>
+            <div class="status-item" id="job"></div>
+        </div>
+
+        <!-- 斩杀线警告区 -->
+        <div class="warn-box" id="killLineWarn" style="display: none;">⚠️【跌破14万斩杀线】医疗翻倍/信用暴跌/无家可归，不可逆惩罚触发！⚠️</div>
+
+        <!-- 事件展示区 核心区 -->
+        <div class="event-box">
+            <div class="event-title" id="eventTitle">游戏即将开始</div>
+            <div class="event-desc" id="eventDesc">点击下方【开始游戏】，体验真实的美国生存法则，你的每一次选择都将决定结局</div>
+        </div>
+
+        <!-- 选项按钮区 -->
+        <div class="option-box" id="optionBox">
+            <button class="option-btn" onclick="startGame()">▶️ 开始游戏</button>
+        </div>
+
+        <!-- 结局展示区 (默认隐藏，结局时显示) -->
+        <div class="result-modal" id="resultModal" style="display: none;">
+            <div class="result-content">
+                <div class="result-type" id="resultType"></div>
+                <div class="result-title" id="resultTitle"></div>
+                <div class="result-desc" id="resultDesc"></div>
+                <div class="result-egg" id="resultEgg"></div>
+                <button class="restart-btn" onclick="restartGame()">🔄 重新开始</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 必须按此顺序引入：先配置、后逻辑 -->
+    <script src="config.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
