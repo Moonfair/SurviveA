@@ -43,6 +43,7 @@ const STATUS_MAP = [
 // ✅ 新增1：选项中配置【setFlag】→ 选择该选项后，自动标记/修改对应Flag
 // ✅ 新增2：事件根节点配置【triggerFlag】→ 满足Flag+属性条件，才会触发该事件（事件联动）
 // ✅ 新增3：数字型Flag支持【累加写法】 loanCount: (prev)=>prev+1
+// ✅ 可选字段【maxTimes】→ 控制单个事件最多出现次数；未配置则视为无限次
 // ✅ 原有事件完全兼容，无任何改动
 const EVENT_LIST = [
     {
@@ -122,6 +123,7 @@ const EVENT_LIST = [
         id: 8,
         title: "回国机票的抉择",
         desc: "你查到回国单程机票2万美金，资金刚好够支付，回国则安稳，留美则继续挣扎。",
+        maxTimes: 1, // 回国机票事件最多出现一次
         triggerFlag: (flag, status) => flag.hasReturnIdea === true && status.money >= 20000, //【FLAG】触发条件：有回国想法+资金足够
         options: [
             { text: "立刻买机票回国", effect: { money: -20000, spirit: +30, health: +10 }, tip: "你逃离美国，重启安稳人生", setFlag: {hasReturnIdea: true, isHomeless: false} },

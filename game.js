@@ -3,6 +3,7 @@ let gameState = {
     currentStatus: {}, // 当前属性值
     currentEventIndex: 0, // 当前事件索引
     usedEvents: [], // 已使用的事件ID，防止重复
+    eventCount: {}, // 事件累计出现次数
     isGameOver: false, // 是否游戏结束
     customFlag: {
         loanCount: 0, // 数字型
@@ -15,6 +16,7 @@ function initStatus() {
     gameState.currentStatus = JSON.parse(JSON.stringify(GAME_CONFIG.initStatus));
     gameState.currentEventIndex = 0;
     gameState.usedEvents = [];
+    gameState.eventCount = {};
     gameState.isGameOver = false;
     // =====【FLAG新增】初始化所有Flag为默认值：布尔=false，数字=0=====
     gameState.customFlag = {};
@@ -66,48 +68,73 @@ function setCustomFlag(flagObj) {
 // =====【FLAG升级】随机抽取事件 - 过滤满足triggerFlag条件的事件=====
 function getRandomEvent() {
     if (gameState.usedEvents.length >= EVENT_LIST.length) gameState.usedEvents = [];
-    // 筛选可用事件：未使用 + 满足触发条件(无条件则默认通过)
-    const availableEvents = EVENT_LIST.filter(event => {
+    const buildAvailable = () => EVENT_LIST.filter(event => {
         const isUsed = gameState.usedEvents.includes(event.id);
+        const maxTimes = typeof event.maxTimes === 'number' ? event.maxTimes : Infinity;
+        const currentCount = gameState.eventCount[event.id] || 0;
+        const underLimit = currentCount < maxTimes;
         const hasTriggerFlag = typeof event.triggerFlag === 'function';
         const flagPass = hasTriggerFlag ? event.triggerFlag(gameState.customFlag, gameState.currentStatus) : true;
-        return !isUsed && flagPass;
+        return !isUsed && flagPass && underLimit;
     });
+
+    const selectFrom = (pool) => {
+        const randomIdx = Math.floor(Math.random() * pool.length);
+        const randomEvent = pool[randomIdx];
+        gameState.usedEvents.push(randomEvent.id);
+        gameState.eventCount[randomEvent.id] = (gameState.eventCount[randomEvent.id] || 0) + 1;
+        return randomEvent;
+    };
+
+    let availableEvents = buildAvailable();
     if (availableEvents.length === 0) {
         // 所有事件都不满足条件，显示debug信息
         showEventPoolDebug();
-        // 重置事件池后递归重试
+        // 重置事件池后尝试一次
         gameState.usedEvents = [];
-        return getRandomEvent();
+        availableEvents = buildAvailable();
+        if (availableEvents.length === 0) {
+            gameState.isGameOver = true; // 没有事件可用，结束流程
+            return null;
+        }
     }
-    const randomIdx = Math.floor(Math.random() * availableEvents.length);
-    const randomEvent = availableEvents[randomIdx];
-    gameState.usedEvents.push(randomEvent.id);
-    return randomEvent;
+    return selectFrom(availableEvents);
 }
 
 // 显示事件池Debug弹窗
 function showEventPoolDebug() {
-    const unusedUnmetEvents = EVENT_LIST.filter(event => {
+    const blockedEvents = EVENT_LIST.filter(event => {
         const isUsed = gameState.usedEvents.includes(event.id);
+        if (isUsed) return false; // 已在本轮使用，先排除
         const hasTriggerFlag = typeof event.triggerFlag === 'function';
         const flagPass = hasTriggerFlag ? event.triggerFlag(gameState.customFlag, gameState.currentStatus) : true;
-        return !isUsed && !flagPass; // 未使用 + 不满足条件
+        const maxTimes = typeof event.maxTimes === 'number' ? event.maxTimes : Infinity;
+        const currentCount = gameState.eventCount[event.id] || 0;
+        const underLimit = currentCount < maxTimes;
+        return !flagPass || !underLimit; // 不满足条件 或 已达上限
     });
 
     let debugInfo = "🔴 【DEBUG】事件池已空\n\n";
     debugInfo += `已使用事件: [${gameState.usedEvents.join(', ')}]\n`;
     debugInfo += `总事件数: ${EVENT_LIST.length}\n\n`;
-    debugInfo += `未使用但不满足条件的事件 (${unusedUnmetEvents.length}个):\n`;
+    debugInfo += `未使用但不可选的事件 (${blockedEvents.length}个):\n`;
     debugInfo += "─".repeat(50) + "\n";
     
-    unusedUnmetEvents.forEach(event => {
+    blockedEvents.forEach(event => {
+        const maxTimes = typeof event.maxTimes === 'number' ? event.maxTimes : Infinity;
+        const currentCount = gameState.eventCount[event.id] || 0;
+        const hasTriggerFlag = typeof event.triggerFlag === 'function';
+        const flagPass = hasTriggerFlag ? event.triggerFlag(gameState.customFlag, gameState.currentStatus) : true;
+        const reasons = [];
+        if (!flagPass) reasons.push("触发条件未满足");
+        if (currentCount >= maxTimes) reasons.push("达到出现上限");
+
         debugInfo += `\n📌 事件ID: ${event.id}\n`;
         debugInfo += `   标题: ${event.title}\n`;
         debugInfo += `   触发条件: ${event.triggerFlag ? "有条件" : "无条件"}\n`;
-        if (event.triggerFlag) {
-            debugInfo += `   当前不满足: ${debugCheckTriggerFlag(event.triggerFlag)}\n`;
-        }
+        debugInfo += `   出现次数: ${currentCount}/${maxTimes === Infinity ? 'unlimited' : maxTimes}\n`;
+        debugInfo += `   阻塞原因: ${reasons.join(' & ') || '无'}\n`;
+        if (event.triggerFlag) debugInfo += `   条件检查: ${debugCheckTriggerFlag(event.triggerFlag)}\n`;
     });
     
     debugInfo += "\n" + "─".repeat(50) + "\n";
@@ -176,7 +203,12 @@ function handleOption(option) {
         showResult();
         return;
     }
-    renderEvent(getRandomEvent());
+    const nextEvent = getRandomEvent();
+    if (!nextEvent) {
+        showResult();
+        return;
+    }
+    renderEvent(nextEvent);
 }
 
 // 检测属性归0提前结束游戏
@@ -198,7 +230,12 @@ function showResult() {
 // 开始游戏
 function startGame() {
     initStatus();
-    renderEvent(getRandomEvent());
+    const firstEvent = getRandomEvent();
+    if (!firstEvent) {
+        showResult();
+        return;
+    }
+    renderEvent(firstEvent);
 }
 
 // 重启游戏
