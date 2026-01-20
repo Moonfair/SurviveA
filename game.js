@@ -18,11 +18,14 @@ function initStatus() {
     gameState.usedEvents = [];
     gameState.eventCount = {};
     gameState.isGameOver = false;
-    // =====【FLAG新增】初始化所有Flag为默认值：布尔=false，数字=0=====
+    gameState.eventCounts = {}; // <-- 添加这行来初始化事件计数器
+    // =====【FLAG新增】初始化所有Flag为默认值：布尔=false，数字型(Count结尾)=0=====
     gameState.customFlag = {};
-    for(let key in GAME_CONFIG.flagDesc) gameState.customFlag[key] = false;
+    for(let key in GAME_CONFIG.flagDesc) {
+        // 数字型Flag（以Count结尾）初始化为0，其他为false
+        gameState.customFlag[key] = key.includes('Count') ? 0 : false;
+    }
     renderStatus();
-    document.getElementById("killLineWarn").style.display = "none";
 }
 
 // 渲染属性状态栏
@@ -30,9 +33,21 @@ function renderStatus() {
     STATUS_MAP.forEach(item => {
         const el = document.getElementById(item.key);
         const val = gameState.currentStatus[item.key];
-        const percent = (val / GAME_CONFIG.maxVal) * 100;
-        el.innerHTML = `${item.name}：${item.key === 'money' ? val.toLocaleString() : val} <span><b class="${item.cls}" style="width:${percent}%"></b></span>`;
+        if (item.key === 'money') {
+            const income = gameState.currentStatus.income || 0;
+            el.innerHTML = `${item.name}：${val.toLocaleString()} <span class="income-text">(+${income.toLocaleString()}/天)</span> <span><b class="${item.cls}" style="width:${(val / GAME_CONFIG.maxVal) * 100}%"></b></span>`;
+        } else {
+            const percent = (val / GAME_CONFIG.maxVal) * 100;
+            el.innerHTML = `${item.name}：${val} <span><b class="${item.cls}" style="width:${percent}%"></b></span>`;
+        }
     });
+    // 天数信息渲染
+    const daysInfo = document.getElementById("daysInfo");
+    if(daysInfo) {
+        const total = GAME_CONFIG.totalEventNum;
+        const current = Math.min(gameState.currentEventIndex+1, total);
+        daysInfo.innerText = `第${current}天 / 共${total}天`;
+    }
     checkKillLine();
     checkGameOverByStatus();
 }
@@ -40,19 +55,10 @@ function renderStatus() {
 // 检测14万美金斩杀线
 function checkKillLine() {
     const money = gameState.currentStatus.money;
-    const warnEl = document.getElementById("killLineWarn");
     if (money < GAME_CONFIG.killLine.threshold) {
-        warnEl.style.display = "block";
-        Object.keys(GAME_CONFIG.killLine.punish).forEach(key => {
-            gameState.currentStatus[key] += GAME_CONFIG.killLine.punish[key];
-            if (key === 'money') {
-                gameState.currentStatus[key] = Math.max(0, gameState.currentStatus[key]);
-            } else {
-                gameState.currentStatus[key] = Math.max(GAME_CONFIG.minVal, Math.min(GAME_CONFIG.maxVal, gameState.currentStatus[key]));
-            }
-        });
+        gameState.customFlag.isUnderKillLine = true; // 设置斩杀线Flag
     } else {
-        warnEl.style.display = "none";
+        gameState.customFlag.isUnderKillLine = false; // 解除斩杀线Flag
     }
 }
 
@@ -67,38 +73,38 @@ function setCustomFlag(flagObj) {
 
 // =====【FLAG升级】随机抽取事件 - 过滤满足triggerFlag条件的事件=====
 function getRandomEvent() {
-    if (gameState.usedEvents.length >= EVENT_LIST.length) gameState.usedEvents = [];
-    const buildAvailable = () => EVENT_LIST.filter(event => {
+    // 筛选出所有未被使用过，且满足触发条件的事件
+    let availableEvents = EVENT_LIST.filter(event => {
         const isUsed = gameState.usedEvents.includes(event.id);
-        const maxTimes = typeof event.maxTimes === 'number' ? event.maxTimes : Infinity;
-        const currentCount = gameState.eventCount[event.id] || 0;
-        const underLimit = currentCount < maxTimes;
-        const hasTriggerFlag = typeof event.triggerFlag === 'function';
-        const flagPass = hasTriggerFlag ? event.triggerFlag(gameState.customFlag, gameState.currentStatus) : true;
-        return !isUsed && flagPass && underLimit;
+        const hasMetMaxTimes = event.maxTimes && (gameState.eventCounts[event.id] || 0) >= event.maxTimes;
+        if (isUsed || hasMetMaxTimes) return false;
+
+        if (event.triggerFlag) {
+            return event.triggerFlag(gameState.customFlag, gameState.currentStatus);
+        }
+        return true;
     });
 
-    const selectFrom = (pool) => {
-        const randomIdx = Math.floor(Math.random() * pool.length);
-        const randomEvent = pool[randomIdx];
-        gameState.usedEvents.push(randomEvent.id);
-        gameState.eventCount[randomEvent.id] = (gameState.eventCount[randomEvent.id] || 0) + 1;
-        return randomEvent;
-    };
-
-    let availableEvents = buildAvailable();
-    if (availableEvents.length === 0) {
-        // 所有事件都不满足条件，显示debug信息
-        showEventPoolDebug();
-        // 重置事件池后尝试一次
-        gameState.usedEvents = [];
-        availableEvents = buildAvailable();
-        if (availableEvents.length === 0) {
-            gameState.isGameOver = true; // 没有事件可用，结束流程
-            return null;
+    // 如果处于“斩杀线”状态，则提高高消耗事件的出现概率
+    if (gameState.customFlag.isUnderKillLine) {
+        const highCostEvents = availableEvents.filter(e => e.isHighCost);
+        const normalEvents = availableEvents.filter(e => !e.isHighCost);
+        
+        // 70%的概率从高消耗事件中抽取，30%从普通事件中抽取
+        if (highCostEvents.length > 0 && Math.random() < 0.7) {
+            availableEvents = highCostEvents;
+        } else if (normalEvents.length > 0) { // 如果高消耗事件没抽中或不存在，则从普通事件中抽
+            availableEvents = normalEvents;
         }
+        // 如果只剩下一种类型的事件，则直接使用
     }
-    return selectFrom(availableEvents);
+
+    if (availableEvents.length === 0) {
+        return null; // 没有可用事件
+    }
+
+    const randomIndex = Math.floor(Math.random() * availableEvents.length);
+    return availableEvents[randomIndex];
 }
 
 // 显示事件池Debug弹窗
@@ -171,31 +177,57 @@ function renderEvent(event) {
     const optionBox = document.getElementById("optionBox");
     optionBox.innerHTML = "";
     event.options.forEach((opt, idx) => {
+        // =====【新增】过滤不满足triggerCond条件的选项=====
+        const hasTriggerCond = typeof opt.triggerCond === 'function';
+        const condPass = hasTriggerCond ? opt.triggerCond(gameState.currentStatus, gameState.customFlag) : true;
+        if (!condPass) return; // 不满足条件的选项不显示
+        
         const btn = document.createElement("button");
         btn.className = "option-btn";
         btn.innerText = opt.text;
-        btn.onclick = () => handleOption(opt);
+        btn.onclick = () => handleOption(opt, event);
         optionBox.appendChild(btn);
     });
 }
 
-// 处理选项点击：属性增减 + FLAG设置 + 流程推进
-function handleOption(option) {
-    // 如果effect是函数，则动态执行
-    const finalEffect = typeof option.effect === 'function' 
+// 处理选项点击：属性增减 + FLAG设置 + dynamicEffect + 流程推进
+function handleOption(option, event) {
+    // 每次行动前，先结算收入
+    gameState.currentStatus.money += gameState.currentStatus.income || 0;
+
+    // =====【步骤1】应用基础effect=====
+    const baseEffect = typeof option.effect === 'function' 
         ? option.effect() 
-        : option.effect;
+        : (option.effect || {});
     
-    Object.keys(finalEffect).forEach(key => {
-        gameState.currentStatus[key] += finalEffect[key];
-        if (key === 'money') {
-            gameState.currentStatus[key] = Math.max(0, gameState.currentStatus[key]);
-        } else {
-            gameState.currentStatus[key] = Math.max(GAME_CONFIG.minVal, Math.min(GAME_CONFIG.maxVal, gameState.currentStatus[key]));
-        }
-    });
-    // =====【FLAG新增】执行当前选项的Flag标记=====
+    const applyEffect = (effectObj) => {
+        Object.keys(effectObj).forEach(key => {
+            gameState.currentStatus[key] += effectObj[key];
+            if (key === 'money') {
+                gameState.currentStatus[key] = Math.max(0, gameState.currentStatus[key]);
+            } else {
+                gameState.currentStatus[key] = Math.max(GAME_CONFIG.minVal, Math.min(GAME_CONFIG.maxVal, gameState.currentStatus[key]));
+            }
+        });
+    };
+    
+    applyEffect(baseEffect);
+    
+    // =====【步骤2】设置Flag标记=====
     setCustomFlag(option.setFlag);
+    
+    // =====【步骤3】应用dynamicEffect（依赖Flag和当前状态）=====
+    if (typeof option.dynamicEffect === 'function') {
+        const dynamicEffectResult = option.dynamicEffect(gameState.customFlag, gameState.currentStatus);
+        if (dynamicEffectResult && typeof dynamicEffectResult === 'object') {
+            applyEffect(dynamicEffectResult);
+        }
+    }
+    
+    // =====【步骤4】应用事件级effect（单选项事件）=====
+    if (event && event.effect && event.options.length === 1) {
+        applyEffect(event.effect);
+    }
 
     renderStatus();
     gameState.currentEventIndex++;
@@ -213,7 +245,11 @@ function handleOption(option) {
 
 // 检测属性归0提前结束游戏
 function checkGameOverByStatus() {
-    gameState.isGameOver = Object.values(gameState.currentStatus).some(val => val <= GAME_CONFIG.minVal);
+    // 只在所有关键属性都为0时才提前game over，否则等事件池耗尽或回合数到达后结算
+    // 关键属性可自定义，这里假设为money, health, spirit, job, social, credit
+    const keys = ['money', 'health', 'spirit', 'job', 'social', 'credit'];
+    const allZero = keys.every(key => gameState.currentStatus[key] <= GAME_CONFIG.minVal);
+    gameState.isGameOver = allZero;
 }
 
 // =====【FLAG升级】结局判定 - 传入属性+Flag双参数=====
