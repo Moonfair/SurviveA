@@ -2,6 +2,7 @@
 let gameState = {
     currentStatus: {}, // 当前属性值
     currentEventIndex: 0, // 当前事件索引
+    currentTurn: 0, // 当前回合数
     usedEvents: [], // 已使用的事件ID，防止重复
     eventCount: {}, // 事件累计出现次数
     isGameOver: false, // 是否游戏结束
@@ -15,10 +16,12 @@ let gameState = {
 function initStatus() {
     gameState.currentStatus = JSON.parse(JSON.stringify(GAME_CONFIG.initStatus));
     gameState.currentEventIndex = 0;
+    gameState.currentTurn = 0; // 初始化当前回合数
     gameState.usedEvents = [];
     gameState.eventCount = {};
     gameState.isGameOver = false;
     gameState.eventCounts = {}; // <-- 添加这行来初始化事件计数器
+    gameState.scheduledEvents = []; // 延迟事件队列
     // =====【FLAG新增】初始化所有Flag为默认值：布尔=false，数字型(Count结尾)=0=====
     gameState.customFlag = {};
     for(let key in GAME_CONFIG.flagDesc) {
@@ -34,8 +37,10 @@ function renderStatus() {
         const el = document.getElementById(item.key);
         const val = gameState.currentStatus[item.key];
         if (item.key === 'money') {
-            const income = gameState.currentStatus.income || 0;
-            el.innerHTML = `${item.name}：${val.toLocaleString()} <span class="income-text">(+${income.toLocaleString()}/天)</span> <span><b class="${item.cls}" style="width:${(val / GAME_CONFIG.maxVal) * 100}%"></b></span>`;
+            el.innerHTML = `${item.name}：${val.toLocaleString()} <span><b class="${item.cls}" style="width:${(val / GAME_CONFIG.maxVal) * 100}%"></b></span>`;
+        } else if (item.key === 'income') {
+            // income 不使用百分比条，直接显示数值
+            el.innerHTML = `${item.name}：${val.toLocaleString()}`;
         } else {
             const percent = (val / GAME_CONFIG.maxVal) * 100;
             el.innerHTML = `${item.name}：${val} <span><b class="${item.cls}" style="width:${percent}%"></b></span>`;
@@ -55,7 +60,7 @@ function renderStatus() {
 // 检测14万美金斩杀线
 function checkKillLine() {
     const money = gameState.currentStatus.money;
-    if (money < GAME_CONFIG.killLine.threshold) {
+    if (money < GAME_CONFIG.killLineThreshold) {
         gameState.customFlag.isUnderKillLine = true; // 设置斩杀线Flag
     } else {
         gameState.customFlag.isUnderKillLine = false; // 解除斩杀线Flag
@@ -67,12 +72,32 @@ function setCustomFlag(flagObj) {
     if(!flagObj) return;
     for(let key in flagObj) {
         const val = flagObj[key];
-        gameState.customFlag[key] = typeof val === 'function' ? val(gameState.customFlag[key] || 0) : val;
+        if (typeof val === 'function') {
+            // 函数形式：传递gameState让其能访问所有状态
+            gameState.customFlag[key] = val(gameState);
+        } else {
+            // 直接赋值
+            gameState.customFlag[key] = val;
+        }
     }
 }
 
 // =====【FLAG升级】随机抽取事件 - 过滤满足triggerFlag条件的事件=====
 function getRandomEvent() {
+    // 优先检查是否有到期的延迟事件（turnsLeft为0）
+    if (gameState.scheduledEvents && gameState.scheduledEvents.length > 0) {
+        const dueEvent = gameState.scheduledEvents.find(se => se.turnsLeft <= 0);
+        if (dueEvent) {
+            // 从队列中移除
+            gameState.scheduledEvents = gameState.scheduledEvents.filter(se => se !== dueEvent);
+            // 查找并返回对应的事件
+            const event = EVENT_LIST.find(e => e.id === dueEvent.eventId);
+            if (event) {
+                return event;
+            }
+        }
+    }
+
     // 筛选出所有未被使用过，且满足触发条件的事件
     let availableEvents = EVENT_LIST.filter(event => {
         const isUsed = gameState.usedEvents.includes(event.id);
@@ -103,8 +128,28 @@ function getRandomEvent() {
         return null; // 没有可用事件
     }
 
-    const randomIndex = Math.floor(Math.random() * availableEvents.length);
-    return availableEvents[randomIndex];
+    // 基于权重的随机选择（支持动态权重表达式）
+    const getWeight = (event) => {
+        const weight = event.weight;
+        if (typeof weight === 'function') {
+            return weight(gameState.customFlag, gameState.currentStatus);
+        }
+        return weight || 1;
+    };
+    
+    const totalWeight = availableEvents.reduce((sum, event) => sum + getWeight(event), 0);
+    let random = Math.random() * totalWeight;
+    
+    for (let event of availableEvents) {
+        const weight = getWeight(event);
+        random -= weight;
+        if (random <= 0) {
+            return event;
+        }
+    }
+    
+    // 兜底：返回最后一个事件
+    return availableEvents[availableEvents.length - 1];
 }
 
 // 显示事件池Debug弹窗
@@ -190,10 +235,13 @@ function renderEvent(event) {
     });
 }
 
-// 处理选项点击：属性增减 + FLAG设置 + dynamicEffect + 流程推进
+// 处理选项点击：属性增减 + FLAG设置 + dynamicEffect + 显示结果页
 function handleOption(option, event) {
     // 每次行动前，先结算收入
     gameState.currentStatus.money += gameState.currentStatus.income || 0;
+    
+    // 递增回合数
+    gameState.currentTurn++;
 
     // =====【步骤1】应用基础effect=====
     const baseEffect = typeof option.effect === 'function' 
@@ -202,6 +250,17 @@ function handleOption(option, event) {
     
     const applyEffect = (effectObj) => {
         Object.keys(effectObj).forEach(key => {
+            // 处理延迟事件调度
+            if (key === 'scheduleEvent') {
+                const schedule = effectObj[key];
+                gameState.scheduledEvents = gameState.scheduledEvents || [];
+                gameState.scheduledEvents.push({
+                    eventId: schedule.eventId,
+                    turnsLeft: schedule.turnsLater || 1
+                });
+                return;
+            }
+            
             gameState.currentStatus[key] += effectObj[key];
             if (key === 'money') {
                 gameState.currentStatus[key] = Math.max(0, gameState.currentStatus[key]);
@@ -216,6 +275,11 @@ function handleOption(option, event) {
     // =====【步骤2】设置Flag标记=====
     setCustomFlag(option.setFlag);
     
+    // =====【步骤2.5】设置事件级Flag标记（在选项级之后执行）=====
+    if (event && event.setFlag) {
+        setCustomFlag(event.setFlag);
+    }
+    
     // =====【步骤3】应用dynamicEffect（依赖Flag和当前状态）=====
     if (typeof option.dynamicEffect === 'function') {
         const dynamicEffectResult = option.dynamicEffect(gameState.customFlag, gameState.currentStatus);
@@ -224,13 +288,54 @@ function handleOption(option, event) {
         }
     }
     
-    // =====【步骤4】应用事件级effect（单选项事件）=====
-    if (event && event.effect && event.options.length === 1) {
+    // =====【步骤4】应用事件级effect（任意选项后都触发）=====
+    if (event && event.effect) {
         applyEffect(event.effect);
+    }
+    
+    // =====【步骤4.5】应用事件级dynamicEffect=====
+    if (event && typeof event.dynamicEffect === 'function') {
+        const eventDynamicResult = event.dynamicEffect(gameState.customFlag, gameState.currentStatus);
+        if (eventDynamicResult && typeof eventDynamicResult === 'object') {
+            applyEffect(eventDynamicResult);
+        }
+    }
+
+    // =====【步骤5】递减所有延迟事件的等待回合数=====
+    if (gameState.scheduledEvents && gameState.scheduledEvents.length > 0) {
+        gameState.scheduledEvents.forEach(se => {
+            se.turnsLeft--;
+        });
     }
 
     renderStatus();
     gameState.currentEventIndex++;
+    
+    // 打印当前gameState到控制台（调试用）
+    console.log('=== 选项执行后的游戏状态 ===');
+    console.log('回合数:', gameState.currentTurn);
+    console.log('事件索引:', gameState.currentEventIndex);
+    console.log('当前属性:', gameState.currentStatus);
+    console.log('自定义Flag:', gameState.customFlag);
+    console.log('已使用事件:', gameState.usedEvents);
+    console.log('延迟事件队列:', gameState.scheduledEvents);
+    console.log('=============================');
+    
+    // =====【步骤6】在事件区显示选项结果=====
+    const resultText = option.resultText || option.tip || "你做出了选择...";
+    document.getElementById("eventDesc").innerText = resultText;
+    
+    const optionBox = document.getElementById("optionBox");
+    optionBox.innerHTML = "";
+    const continueBtn = document.createElement("button");
+    continueBtn.className = "option-btn";
+    continueBtn.innerText = "➡️ 继续";
+    continueBtn.onclick = continueGame;
+    optionBox.appendChild(continueBtn);
+}
+
+// 继续游戏：进入下一事件
+function continueGame() {
     if (gameState.currentEventIndex >= GAME_CONFIG.totalEventNum || gameState.isGameOver) {
         showResult();
         return;
@@ -246,8 +351,8 @@ function handleOption(option, event) {
 // 检测属性归0提前结束游戏
 function checkGameOverByStatus() {
     // 只在所有关键属性都为0时才提前game over，否则等事件池耗尽或回合数到达后结算
-    // 关键属性可自定义，这里假设为money, health, spirit, job, social, credit
-    const keys = ['money', 'health', 'spirit', 'job', 'social', 'credit'];
+    // 关键属性可自定义，这里假设为money, health, spirit, social, credit
+    const keys = ['money', 'health', 'spirit', 'social', 'credit'];
     const allZero = keys.every(key => gameState.currentStatus[key] <= GAME_CONFIG.minVal);
     gameState.isGameOver = allZero;
 }

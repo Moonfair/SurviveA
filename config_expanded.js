@@ -52,7 +52,7 @@ const STATUS_MAP = [
     { key: "money", name: "资金(美金)", cls: "money-bar" },
     { key: "credit", name: "信用", cls: "credit-bar" },
     { key: "social", name: "人脉", cls: "social-bar" },
-    { key: "job", name: "职业稳定", cls: "job-bar" }
+    { key: "income", name: "收入(美金/天)", cls: "income-bar" }
 ];
 
 // ===================== ✅ 事件池【102个事件 超量扩容】 =====================
