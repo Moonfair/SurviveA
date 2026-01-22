@@ -408,7 +408,6 @@ const RESULT_LIST = [
     {id:20,type:"BE",title:"【身份失效·被迫离境】",desc:"你的H1B申请失败，或者在绿卡期间失业没能找到下家，最终失去了在美合法身份，不得不打包行李，仓皇离开。",egg:"牢A：没有那张纸，你在这里的一切努力都可能瞬间清零。",condition:(f)=>!f.hasH1B && f.greenCardFailed},
     {id:21,type:"BE",title:"【孤独终老·客死他乡】",desc:"你一生未婚，没有子女，与亲友关系淡漠。晚年在一个小小的公寓里悄然离世，几天后才被邻居发现。",egg:"牢A：最深的孤独，不是没人陪，是没人记得。",condition:(s,f)=>!f.isMarried && !f.inRelationship && s.social<=10 && s.spirit<=20},
     {id:22,type:"BE",title:"【投资失败·一贫如洗】",desc:"你将所有积蓄投入股市或加密货币，结果市场崩盘，你血本无归，甚至背上债务。",egg:"牢A：金融市场，是合法收割你财富的地方。",condition:(f)=> (f.investedCrypto || f.investedStocks) && !f.investmentSuccess && f.money < 10000},
-    {id:23,type:"BE",title:"【官司缠身·精神崩溃】",desc:"你卷入了一场旷日持久的官司，即使最后胜诉，也耗尽了你的金钱和精力，最终精神崩溃。",egg:"牢A：在美国，赢了官司，输了人生。",condition:(f)=>f.inLawsuit && s.spirit<=0},
 
     // ===================== ✅ 【NORMAL 中性结局】=====================
     {id:24,type:"NORMAL",title:"【平凡度日·岁月安稳】",desc:"你资金在14-15万之间，健康精神60左右，无负债无恶习，有稳定工作，不富不贵，只是平淡度日，这是最真实的普通人生活。",egg:"牢A：平凡，是大多数人最终的归宿，也是最好的归宿。",condition:(s)=>s.money>=140000&&s.money<=150000&&s.health>=50&&s.spirit>=50},

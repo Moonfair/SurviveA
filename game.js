@@ -6,6 +6,7 @@ let gameState = {
     usedEvents: [], // 已使用的事件ID，防止重复
     eventCount: {}, // 事件累计出现次数
     isGameOver: false, // 是否游戏结束
+    activeBuffs: [], // 当前激活的buff/debuff列表
     customFlag: {
         loanCount: 0, // 数字型
         // 其他保持false默认值
@@ -22,6 +23,7 @@ function initStatus() {
     gameState.isGameOver = false;
     gameState.eventCounts = {}; // <-- 添加这行来初始化事件计数器
     gameState.scheduledEvents = []; // 延迟事件队列
+    gameState.activeBuffs = []; // 初始化buff/debuff列表
     // =====【FLAG新增】初始化所有Flag为默认值：布尔=false，数字型(Count结尾)=0=====
     gameState.customFlag = {};
     for(let key in GAME_CONFIG.flagDesc) {
@@ -30,7 +32,6 @@ function initStatus() {
     }
     renderStatus();
 }
-
 // 渲染属性状态栏
 function renderStatus() {
     STATUS_MAP.forEach(item => {
@@ -55,6 +56,79 @@ function renderStatus() {
     }
     checkKillLine();
     checkGameOverByStatus();
+    renderBuffs();
+}
+
+// 渲染buff/debuff显示
+function renderBuffs() {
+    const buffsBox = document.getElementById("buffsBox");
+    const buffsList = document.getElementById("buffsList");
+    
+    if (!gameState.activeBuffs || gameState.activeBuffs.length === 0) {
+        buffsBox.style.display = "none";
+        return;
+    }
+    
+    buffsBox.style.display = "block";
+    buffsList.innerHTML = "";
+    
+    gameState.activeBuffs.forEach(buff => {
+        const buffConfig = BUFF_CONFIG[buff.buffId];
+        if (!buffConfig) return;
+        
+        // 判断是buff还是debuff（根据效果值）
+        let isDebuff = false;
+        const onTick = typeof buffConfig.onTick === 'function' 
+            ? buffConfig.onTick(gameState) 
+            : buffConfig.onTick;
+        
+        if (onTick) {
+            // 如果任何效果值为负，则视为debuff
+            for (let key in onTick) {
+                if (onTick[key] < 0) {
+                    isDebuff = true;
+                    break;
+                }
+            }
+        }
+        
+        // 根据类型选择颜色
+        const bgColor = isDebuff ? "#FF7F50" : "#90EE90";
+        const borderColor = isDebuff ? "#FF6347" : "#7CCD7C";
+        const textColor = isDebuff ? "#333" : "#333";
+        
+        const buffDiv = document.createElement("span");
+        buffDiv.style.cssText = `
+            display:inline-block;
+            padding:4px 10px;
+            background:${bgColor};
+            border:1px solid ${borderColor};
+            border-radius:12px;
+            font-size:11px;
+            color:${textColor};
+            white-space:nowrap;
+            cursor:default;
+        `;
+        
+        // 生成详细效果文本（用于hover显示）
+        let effectDetails = [];
+        if (onTick) {
+            for (let key in onTick) {
+                const value = onTick[key];
+                const statusItem = STATUS_MAP.find(item => item.key === key);
+                const name = statusItem ? statusItem.name : key;
+                const sign = value > 0 ? "+" : "";
+                effectDetails.push(`${name}${sign}${value}`);
+            }
+        }
+        const hoverText = effectDetails.length > 0 ? `效果: ${effectDetails.join(", ")}` : "";
+        
+        // 设置hover提示
+        buffDiv.title = hoverText;
+        buffDiv.innerHTML = `${buffConfig.name} (${buff.duration})`;
+        
+        buffsList.appendChild(buffDiv);
+    });
 }
 
 // 检测14万美金斩杀线
@@ -105,7 +179,7 @@ function getRandomEvent() {
         if (isUsed || hasMetMaxTimes) return false;
 
         if (event.triggerFlag) {
-            return event.triggerFlag(gameState.customFlag, gameState.currentStatus);
+            return event.triggerFlag(gameState);
         }
         return true;
     });
@@ -132,9 +206,9 @@ function getRandomEvent() {
     const getWeight = (event) => {
         const weight = event.weight;
         if (typeof weight === 'function') {
-            return weight(gameState.customFlag, gameState.currentStatus);
+            return weight(gameState);
         }
-        return weight || 1;
+        return weight || 10;
     };
     
     const totalWeight = availableEvents.reduce((sum, event) => sum + getWeight(event), 0);
@@ -158,7 +232,7 @@ function showEventPoolDebug() {
         const isUsed = gameState.usedEvents.includes(event.id);
         if (isUsed) return false; // 已在本轮使用，先排除
         const hasTriggerFlag = typeof event.triggerFlag === 'function';
-        const flagPass = hasTriggerFlag ? event.triggerFlag(gameState.customFlag, gameState.currentStatus) : true;
+        const flagPass = hasTriggerFlag ? event.triggerFlag(gameState) : true;
         const maxTimes = typeof event.maxTimes === 'number' ? event.maxTimes : Infinity;
         const currentCount = gameState.eventCount[event.id] || 0;
         const underLimit = currentCount < maxTimes;
@@ -208,7 +282,7 @@ function showEventPoolDebug() {
 // 辅助函数：检查触发条件未满足的原因
 function debugCheckTriggerFlag(triggerFlagFunc) {
     try {
-        const result = triggerFlagFunc(gameState.customFlag, gameState.currentStatus);
+        const result = triggerFlagFunc(gameState);
         return result ? "满足条件" : "条件不满足";
     } catch (e) {
         return `错误: ${e.message}`;
@@ -224,7 +298,7 @@ function renderEvent(event) {
     event.options.forEach((opt, idx) => {
         // =====【新增】过滤不满足triggerCond条件的选项=====
         const hasTriggerCond = typeof opt.triggerCond === 'function';
-        const condPass = hasTriggerCond ? opt.triggerCond(gameState.currentStatus, gameState.customFlag) : true;
+        const condPass = hasTriggerCond ? opt.triggerCond(gameState) : true;
         if (!condPass) return; // 不满足条件的选项不显示
         
         const btn = document.createElement("button");
@@ -237,6 +311,36 @@ function renderEvent(event) {
 
 // 处理选项点击：属性增减 + FLAG设置 + dynamicEffect + 显示结果页
 function handleOption(option, event) {
+    // 记录属性变化（用于显示）
+    const statusChanges = {};
+    
+    // =====【步骤0】每回合开始时结算buff/debuff=====
+    if (gameState.activeBuffs && gameState.activeBuffs.length > 0) {
+        gameState.activeBuffs.forEach(buff => {
+            const buffConfig = BUFF_CONFIG[buff.buffId];
+            if (buffConfig && buffConfig.onTick) {
+                const tickEffect = typeof buffConfig.onTick === 'function'
+                    ? buffConfig.onTick(gameState)
+                    : buffConfig.onTick;
+                
+                // 应用buff效果
+                Object.keys(tickEffect).forEach(key => {
+                    gameState.currentStatus[key] += tickEffect[key];
+                    if (key === 'money') {
+                        gameState.currentStatus[key] = Math.max(0, gameState.currentStatus[key]);
+                    } else {
+                        gameState.currentStatus[key] = Math.max(GAME_CONFIG.minVal, Math.min(GAME_CONFIG.maxVal, gameState.currentStatus[key]));
+                    }
+                });
+            }
+            // 递减buff持续时间
+            buff.duration--;
+        });
+        
+        // 移除已过期的buff
+        gameState.activeBuffs = gameState.activeBuffs.filter(buff => buff.duration > 0);
+    }
+    
     // 每次行动前，先结算收入
     gameState.currentStatus.money += gameState.currentStatus.income || 0;
     
@@ -248,7 +352,7 @@ function handleOption(option, event) {
         ? option.effect() 
         : (option.effect || {});
     
-    const applyEffect = (effectObj) => {
+    const applyEffect = (effectObj, trackChanges = false) => {
         Object.keys(effectObj).forEach(key => {
             // 处理延迟事件调度
             if (key === 'scheduleEvent') {
@@ -261,6 +365,25 @@ function handleOption(option, event) {
                 return;
             }
             
+            // 处理添加buff/debuff
+            if (key === 'addBuff') {
+                const buffData = effectObj[key];
+                gameState.activeBuffs = gameState.activeBuffs || [];
+                // buffData 格式: {buffId1: duration1, buffId2: duration2, ...}
+                for (let buffId in buffData) {
+                    gameState.activeBuffs.push({
+                        buffId: buffId,
+                        duration: buffData[buffId]
+                    });
+                }
+                return;
+            }
+            
+            // 记录属性变化
+            if (trackChanges && (key !== 'scheduleEvent' && key !== 'addBuff')) {
+                statusChanges[key] = (statusChanges[key] || 0) + effectObj[key];
+            }
+            
             gameState.currentStatus[key] += effectObj[key];
             if (key === 'money') {
                 gameState.currentStatus[key] = Math.max(0, gameState.currentStatus[key]);
@@ -270,7 +393,7 @@ function handleOption(option, event) {
         });
     };
     
-    applyEffect(baseEffect);
+    applyEffect(baseEffect, true);
     
     // =====【步骤2】设置Flag标记=====
     setCustomFlag(option.setFlag);
@@ -282,22 +405,22 @@ function handleOption(option, event) {
     
     // =====【步骤3】应用dynamicEffect（依赖Flag和当前状态）=====
     if (typeof option.dynamicEffect === 'function') {
-        const dynamicEffectResult = option.dynamicEffect(gameState.customFlag, gameState.currentStatus);
+        const dynamicEffectResult = option.dynamicEffect(gameState);
         if (dynamicEffectResult && typeof dynamicEffectResult === 'object') {
-            applyEffect(dynamicEffectResult);
+            applyEffect(dynamicEffectResult, true);
         }
     }
     
     // =====【步骤4】应用事件级effect（任意选项后都触发）=====
     if (event && event.effect) {
-        applyEffect(event.effect);
+        applyEffect(event.effect, true);
     }
     
     // =====【步骤4.5】应用事件级dynamicEffect=====
     if (event && typeof event.dynamicEffect === 'function') {
-        const eventDynamicResult = event.dynamicEffect(gameState.customFlag, gameState.currentStatus);
+        const eventDynamicResult = event.dynamicEffect(gameState);
         if (eventDynamicResult && typeof eventDynamicResult === 'object') {
-            applyEffect(eventDynamicResult);
+            applyEffect(eventDynamicResult, true);
         }
     }
 
@@ -321,17 +444,54 @@ function handleOption(option, event) {
     console.log('延迟事件队列:', gameState.scheduledEvents);
     console.log('=============================');
     
-    // =====【步骤6】在事件区显示选项结果=====
+    // =====【步骤6】检查是否触发特殊结局（立即结算）=====
+    const specialEnding = checkSpecialEndings();
+    if (specialEnding) {
+        gameState.isGameOver = true;
+    }
+    
+    // =====【步骤7】在事件区显示选项结果=====
     const resultText = option.resultText || option.tip || "你做出了选择...";
-    document.getElementById("eventDesc").innerText = resultText;
+    
+    // 生成属性变化显示文本
+    let changesText = "";
+    if (Object.keys(statusChanges).length > 0) {
+        const changesList = [];
+        for (let key in statusChanges) {
+            const change = statusChanges[key];
+            const statusItem = STATUS_MAP.find(item => item.key === key);
+            if (!statusItem) continue;
+            const name = statusItem.name;
+            const sign = change > 0 ? "+" : "";
+            const displayValue = key === 'money' || key === 'income' ? change.toLocaleString() : change;
+            changesList.push(`${name} ${sign}${displayValue}`);
+        }
+        changesText = "\n\n" + changesList.join("  |  ");
+    }
+    
+    // 显示结果文本和属性变化
+    const eventDescEl = document.getElementById("eventDesc");
+    eventDescEl.innerHTML = resultText + 
+        (changesText ? `<div style="color: #4a90e2; margin-top: 10px; font-size: 14px;">${changesText}</div>` : "");
     
     const optionBox = document.getElementById("optionBox");
     optionBox.innerHTML = "";
     const continueBtn = document.createElement("button");
     continueBtn.className = "option-btn";
     continueBtn.innerText = "➡️ 继续";
-    continueBtn.onclick = continueGame;
+    continueBtn.onclick = specialEnding ? () => showResult(specialEnding) : continueGame;
     optionBox.appendChild(continueBtn);
+}
+
+// =====【新增】检查是否满足特殊结局条件=====
+function checkSpecialEndings() {
+    const specialEndings = RESULT_LIST.filter(r => r.resultType === "special");
+    for (let ending of specialEndings) {
+        if (ending.condition(gameState)) {
+            return ending;
+        }
+    }
+    return null;
 }
 
 // 继续游戏：进入下一事件
@@ -357,10 +517,27 @@ function checkGameOverByStatus() {
     gameState.isGameOver = allZero;
 }
 
-// =====【FLAG升级】结局判定 - 传入属性+Flag双参数=====
-function showResult() {
-    let result = RESULT_LIST.find(res => res.condition(gameState.currentStatus, gameState.customFlag));
-    if (!result) result = RESULT_LIST[9]; // 默认BE兜底
+// =====【重构】结局判定 - 区分特殊结局和普通结局=====
+function showResult(forcedEnding = null) {
+    let result;
+    
+    if (forcedEnding) {
+        // 如果传入了强制结局（特殊结局），直接使用
+        result = forcedEnding;
+    } else {
+        // 否则从普通结局中随机挑选满足条件的结局
+        const normalEndings = RESULT_LIST.filter(r => r.resultType === "normal");
+        const availableEndings = normalEndings.filter(r => r.condition(gameState));
+        
+        if (availableEndings.length === 0) {
+            // 兜底：找一个默认结局
+            result = normalEndings.find(r => r.id === 999) || normalEndings[normalEndings.length - 1];
+        } else {
+            // 从满足条件的普通结局中随机选择一个
+            result = availableEndings[Math.floor(Math.random() * availableEndings.length)];
+        }
+    }
+    
     document.getElementById("resultType").innerText = result.type === "HE" ? "✅ 好结局 ✅" : "❌ 坏结局 ❌";
     document.getElementById("resultTitle").innerText = result.title;
     document.getElementById("resultDesc").innerText = result.desc;
