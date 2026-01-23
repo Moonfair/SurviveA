@@ -77,6 +77,7 @@ const EVENT_LIST = [
         title:"你生病了!", 
         triggerFlag:(gs)=> !gs.customFlag.inMedical,
         maxtimes:1,
+        weight: (gs) => 10 + 50 * ((GAME_CONFIG.maxVal - gs.currentStatus.health) * 1.0 / GAME_CONFIG.maxVal),
         desc:"身体的病痛正折磨着你，你不得不打通了医院的电话。电话在长久的拨号声后终于接通，对面传来喘杂的噪声。接起来电话的是个不耐烦的中年护士，她几乎是吹毛求疵地要求你相近地描述症状。你决定：", 
         options:[
             {text:"强忍不适，尽可能详细描述病情", effect:{spirit:-5, scheduleEvent: {eventId: 102, turnsLater: 3}}, resultText: "护士总算是勉强表示她听懂了，告诉你 3 个月后再来。"},
@@ -92,6 +93,7 @@ const EVENT_LIST = [
         title:"诊断", 
         triggerFlag:(gs)=> gs.customFlag.inMedical,
         maxtimes:1,
+        weight: 0,
         desc:"终于到了你的预约时间，你来到医院，见到了医生。医生显然已经不记得你这个病人，装模作样的进行一番诊断后。他笑容可掬的说：“先去排队做一个ct吧。你也是运气好，最近刚好有一个加急通道名额，原来要等4个月的，现在可以减到两个月。就是价格上会贵那么一些...“你决定：", 
         options:[
             {text:"等正常流程", effect:{scheduleEvent: {eventId: 103, turnsLater: 4}}, resultText: "“该死的吸血鬼！”你暗骂道，“多等两个月可以，但绝不能让他们从我这多捞到一分钱！”你还是委婉拒绝，决定耐心等待4个月。"},
@@ -104,6 +106,7 @@ const EVENT_LIST = [
         title:"治疗", 
         triggerFlag:(gs)=> gs.customFlag.inMedical,
         maxtimes:1,
+        weight: 0,
         desc:"又是几个月过去，你终于你带着CT结果回到医生面前。医生仔细端详了片子和化验结果，告知你需要进行一台手术。然而排队的人很多，最近的一台也要等到6个月后。医生耸耸肩，“如果运气好，也有可能提前安排。我先给你开一些止痛药，实在坚持不了就吃两片顶一顶。”你决定：", 
         options:[
             {text:"默默接受", resultText: "你知道现实确实如此，甚至6个月已经算是很短的时间。你只能默默接受这个安排，祈祷自己能够活着等到手术日期。"},

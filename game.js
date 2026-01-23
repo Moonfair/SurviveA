@@ -159,6 +159,7 @@ function setCustomFlag(flagObj) {
 // =====【FLAG升级】随机抽取事件 - 过滤满足triggerFlag条件的事件=====
 function getRandomEvent() {
     // 优先检查是否有到期的延迟事件（turnsLeft为0）
+    // 延迟事件直接触发，不检测权重、triggerFlag、maxTimes等条件
     if (gameState.scheduledEvents && gameState.scheduledEvents.length > 0) {
         const dueEvent = gameState.scheduledEvents.find(se => se.turnsLeft <= 0);
         if (dueEvent) {
@@ -184,20 +185,6 @@ function getRandomEvent() {
         return true;
     });
 
-    // 如果处于“斩杀线”状态，则提高高消耗事件的出现概率
-    if (gameState.customFlag.isUnderKillLine) {
-        const highCostEvents = availableEvents.filter(e => e.isHighCost);
-        const normalEvents = availableEvents.filter(e => !e.isHighCost);
-        
-        // 70%的概率从高消耗事件中抽取，30%从普通事件中抽取
-        if (highCostEvents.length > 0 && Math.random() < 0.7) {
-            availableEvents = highCostEvents;
-        } else if (normalEvents.length > 0) { // 如果高消耗事件没抽中或不存在，则从普通事件中抽
-            availableEvents = normalEvents;
-        }
-        // 如果只剩下一种类型的事件，则直接使用
-    }
-
     if (availableEvents.length === 0) {
         return null; // 没有可用事件
     }
@@ -205,10 +192,15 @@ function getRandomEvent() {
     // 基于权重的随机选择（支持动态权重表达式）
     const getWeight = (event) => {
         const weight = event.weight;
+        let result = 10;
         if (typeof weight === 'function') {
-            return weight(gameState);
+            result = weight(gameState);
+        } else if (weight !== undefined) {
+            result = weight;
         }
-        return weight || 10;
+
+        const rate = event.isHighCost && gameState.customFlag.isUnderKillLine ? 2 : 1;
+        return result * rate;
     };
     
     const totalWeight = availableEvents.reduce((sum, event) => sum + getWeight(event), 0);
