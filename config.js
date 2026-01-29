@@ -54,7 +54,8 @@ const GAME_CONFIG = {
         useDragTimes: "使用止痛药次数",
         loanSharkDebt: "高利贷债务",
         owedParents: "欠父母钱",
-        lentMoneyToFriend: "借钱给朋友"
+        lentMoneyToFriend: "借钱给朋友",
+        onLeave: "本月请假中"
     }
 };
 const STATUS_MAP = [
@@ -205,7 +206,7 @@ const EVENT_LIST = [
         weight: (gs) => 40 * ((GAME_CONFIG.maxVal - gs.currentStatus.spirit) * 1.0 / GAME_CONFIG.maxVal),
         desc:"一觉醒来，你发现自己头痛欲裂，哈欠连天。强撑着来到公司，不到一小时的时间里已经犯了好几个低级错误。老板把你叫到办公室，严肃地说：“你今天的状态不太对，要不要考虑请个假好好休息一下？”你决定：", 
         options:[
-            {text:"请假休息",effect:{job:-10, spirit:+10}, resultText: "你实在顶不住了，决定请假我休息一天。至于堆积的工作、同事的挤兑、老板的不满......你都无暇顾及了。你只想好好睡一觉。"},
+            {text:"请假休息",effect:{job:-10, spirit:+10}, setFlag:{onLeave:true}, resultText: "你实在顶不住了，决定请假休息一天。至于堆积的工作、同事的挤兑、老板的不满......你都无暇顾及了。你只想好好睡一觉。本月收入将不会发放。"},
             {text:"使用强化剂",effect:{spirit:+10, job:+5, money:-1000}, resultText: "你敏锐的察觉到老板的不满——他并不是真的希望你休息，而是在暗暗敲打你的工作状态。你知道再不做出些改变，你可能会永远失去这份薪水并不丰厚的工作。你来到楼下的便利店忍痛买了根强化剂。喝下的瞬间，你一下摆脱了疲劳，也失去了些别的什么东西......"},
             {text:"强撑",effect:{spirit:-15, job:-5}, resultText: "你不敢请假，也不想成为天天依靠强化剂的毒狗，只能咬咬牙强撑下去。即使如此，你还是错漏百出，不得不花加倍的时间来完成工作。终于，在凌晨3点钟，你拖着疲惫的身躯走出了空无一人的办公室。"},
         ]
@@ -219,7 +220,7 @@ const EVENT_LIST = [
         options:[
             {text:"忍气吞声",effect:{spirit:-10}, resultText: "你决定忍气吞声——和这种小人计较永远没有好处，大不了等下次再晋升也是一样。退一步越想越气，你感觉今天的工作都不在状态，回家猛灌一瓶啤酒便沉沉睡下。"},
             {text:"检举揭发",effect:{job:-10}, resultText: "你觉得忍无可忍，于是向HR举报了他可能存在舞弊行为。HR礼貌的结果申请，并告诉你会秉公调查，有了结果再联系你。一个月过去了，你没有收到任何结果，反而觉得同事们都有意无意地疏远你。"},
-            {text:"同流合污",effect:{job:+10}, resultText: "你知道对于这种混的风生水起的人，检举揭发并不能解决问题，但是如果你与他打好关系，说不定还能喝到口汤。于是你强忍着恶心与他称兄道弟，果然做出了不少业绩。"},
+            {text:"同流合污",effect:{job:+10, income:+100}, resultText: "你知道对于这种混的风生水起的人，检举揭发并不能解决问题，但是如果你与他打好关系，说不定还能喝到口汤。于是你强忍着恶心与他称兄道弟，果然做出了不少业绩。你的收入也有所增加。"},
         ]
     },
     {
@@ -242,9 +243,9 @@ const EVENT_LIST = [
         maxtimes:1,
         desc:"你已经连续加班两个月了。今天早上，你盯着天花板，发现自己无法起床。不是身体不能动，而是大脑在拒绝——“为什么？为什么要起来？工作有什么意义？”你迟到了两个小时才到公司，整个上午都坐在工位上发呆，什么也做不了。同事们窃窃私语，老板的目光如芒在背。你已经燃烧殆尽了。你决定：", 
         options:[
-            {text:"申请心理健康假期", effect:{job:-15, spirit:+20, money:-2000}, resultText: "你鼓起勇气向HR提出申请。HR给你一个充满怀疑的眼神：“心理健康假期？我们公司没有这个政策。不过你可以用你的病假额度。”你用掉了仅有的5天病假，在家躺了一周，什么也没做，只是盯着天花板发呆。回到公司后，你发现自己的项目已经被分给了别人。", setFlag:{burnedOut:true}},
+            {text:"申请心理健康假期", effect:{job:-15, spirit:+20, money:-2000}, setFlag:{burnedOut:true, onLeave:true}, resultText: "你鼓起勇气向HR提出申请。HR给你一个充满怀疑的眼神：“心理健康假期？我们公司没有这个政策。不过你可以用你的病假额度。”你用掉了仅有的5天病假，在家躺了一周，什么也没做，只是盯着天花板发呆。回到公司后，你发现自己的项目已经被分给了别人。本月收入将不会发放。"},
             {text:"依靠咖啡因和刺激物硬撑", effect:{health:-20, spirit:-10, job:+10}, resultText: "你开始每天喝6杯咖啡，午休时吞下能量药丸。晚上失眠时服用安眠药，早上起不来时喝强化剂。你变成了一个靠化学物质维持运转的机器。老板表扬你“最近状态很好”，而你的手开始控制不住地颤抖。", setFlag:{burnedOut:true, drugDependency:true}},
-            {text:"辞职，哪怕没有下家", effect:{job:-50, spirit:-15, money:-10000}, resultText: "你在一个普通的周二下午，突然站起来，走进老板办公室，说：“我不干了。”老板愣了一下，然后笑了：“想清楚了？市场上可没那么多工作。”你还是走了出去，清空工位，头也不回地离开。走出大楼的那一刻，你深吸一口气，感觉到了久违的……解脱。至于明天怎么办？明天再说吧。", setFlag:{burnedOut:true, quit:true}}
+            {text:"辞职，哪怕没有下家", effect:{job:-50, spirit:-15, money:-10000, income:-500}, resultText: "你在一个普通的周二下午，突然站起来，走进老板办公室，说：“我不干了。”老板愣了一下，然后笑了：“想清楚了？市场上可没那么多工作。”你还是走了出去，清空工位，头也不回地离开。走出大楼的那一刻，你深吸一口气，感觉到了久违的……解脱。至于明天怎么办？明天再说吧。你失去了工作，收入归零。", setFlag:{burnedOut:true, quit:true}}
         ]
     },
     // 无处不在的监控
@@ -270,9 +271,9 @@ const EVENT_LIST = [
         weight: 25,
         desc:"CEO在全员会议上宣布：“为了应对市场挑战，公司将进行组织优化，优化比例为30%。”会议室一片死寂。接下来的两周，办公室变成了战场。同事们互相提防，拼命表现自己的价值，揭露别人的“划水”行为。HR开始一对一约谈。你每天早上醒来都在想：今天会是我吗？你决定：", 
         options:[
-            {text:"主动加班，做更多项目", effect:{health:-15, spirit:-10, job:+15}, resultText: "你每天第一个到公司，最后一个离开，周末也主动来加班。你给老板发日报、周报，事无巨细地展示自己的工作量。你的“生存本能”被激活了——像困兽一样拼命撕咬。", dynamicEffect:(gs)=>{const survive=Math.random()>0.35; if(survive){return {spirit:+15};}else{return{job:-60, money:+15000, spirit:-30};}}, setFlag:{survivedLayoff:true}},
-            {text:"疯狂社交，证明自己有人脉价值", effect:{social:+10, spirit:-15, money:-3000}, resultText: "你开始和每个人套近乎，请同事喝咖啡，给老板的老板发邮件“汇报工作”，在公司社交活动上强颜欢笑。你花钱请客吃饭，只为了让别人记住你的名字。你变成了一个社交机器，笑容都是假的。", dynamicEffect:(gs)=>{const survive=Math.random()>0.45; if(survive){return {spirit:+10};}else{return{job:-60, money:+12000, spirit:-35};}}, setFlag:{survivedLayoff:true}},
-            {text:"默默更新简历，做两手准备", effect:{spirit:-10}, resultText: "你一边假装镇定地工作，一边偷偷投简历。你知道，在这种恐慌氛围里，过度表现反而可能引起怀疑。你保持低调，不参与办公室政治，暗暗等待结果。", dynamicEffect:(gs)=>{const survive=Math.random()>0.5; if(survive){return {spirit:+5};}else{return{job:-60, money:+10000, spirit:-25};}}, setFlag:{survivedLayoff:true}}
+            {text:"主动加班，做更多项目", effect:{health:-15, spirit:-10, job:+15}, resultText: "你每天第一个到公司，最后一个离开，周末也主动来加班。你给老板发日报、周报，事无巨细地展示自己的工作量。你的“生存本能”被激活了——像困兽一样拼命撕咬。", dynamicEffect:(gs)=>{const survive=Math.random()>0.35; if(survive){return {spirit:+15};}else{return{job:-60, money:+15000, spirit:-30, income:-gs.currentStatus.income};}}, setFlag:{survivedLayoff:true}},
+            {text:"疯狂社交，证明自己有人脉价值", effect:{social:+10, spirit:-15, money:-3000}, resultText: "你开始和每个人套近乎，请同事喝咖啡，给老板的老板发邮件“汇报工作”，在公司社交活动上强颜欢笑。你花钱请客吃饭，只为了让别人记住你的名字。你变成了一个社交机器，笑容都是假的。", dynamicEffect:(gs)=>{const survive=Math.random()>0.45; if(survive){return {spirit:+10};}else{return{job:-60, money:+12000, spirit:-35, income:-gs.currentStatus.income};}}, setFlag:{survivedLayoff:true}},
+            {text:"默默更新简历，做两手准备", effect:{spirit:-10}, resultText: "你一边假装镇定地工作，一边偷偷投简历。你知道，在这种恐慌氛围里，过度表现反而可能引起怀疑。你保持低调，不参与办公室政治，暗暗等待结果。", dynamicEffect:(gs)=>{const survive=Math.random()>0.5; if(survive){return {spirit:+5};}else{return{job:-60, money:+10000, spirit:-25, income:-gs.currentStatus.income};}}, setFlag:{survivedLayoff:true}}
         ]
     },
     

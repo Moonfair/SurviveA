@@ -332,10 +332,14 @@ function handleOption(option, event) {
         gameState.activeBuffs = gameState.activeBuffs.filter(buff => buff.duration > 0);
     }
     
-    // 每次行动前，先结算收入
-    gameState.currentStatus.money += gameState.currentStatus.income || 0;
+    if (!gameState.customFlag.onLeave) {
+        gameState.currentStatus.money += gameState.currentStatus.income || 0;
+    }
     
-    // 递增回合数
+    if (gameState.customFlag.onLeave) {
+        gameState.customFlag.onLeave = false;
+    }
+    
     gameState.currentTurn++;
 
     // =====【步骤1】应用基础effect=====
