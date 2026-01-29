@@ -47,12 +47,11 @@ function renderStatus() {
             el.innerHTML = `${item.name}：${val} <span><b class="${item.cls}" style="width:${percent}%"></b></span>`;
         }
     });
-    // 天数信息渲染
     const daysInfo = document.getElementById("daysInfo");
     if(daysInfo) {
         const total = GAME_CONFIG.totalEventNum;
         const current = Math.min(gameState.currentEventIndex+1, total);
-        daysInfo.innerText = `第${current}天 / 共${total}天`;
+        daysInfo.innerText = `第${current}月 / 共${total}月`;
     }
     checkKillLine();
     checkGameOverByStatus();
@@ -531,6 +530,15 @@ function showResult(forcedEnding = null) {
     }
     
     document.getElementById("resultType").innerText = result.type === "HE" ? "✅ 好结局 ✅" : "❌ 坏结局 ❌";
+    
+    const resultDaysEl = document.getElementById("resultDays");
+    if (result.type === "BE") {
+        resultDaysEl.style.display = "block";
+        resultDaysEl.innerText = `你在美国生存了 ${gameState.currentTurn} 个月`;
+    } else {
+        resultDaysEl.style.display = "none";
+    }
+    
     document.getElementById("resultTitle").innerText = result.title;
     document.getElementById("resultDesc").innerText = result.desc;
     document.getElementById("resultEgg").innerText = result.egg;
