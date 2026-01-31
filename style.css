@@ -246,3 +246,39 @@ body {
     font-size: 14px;
     font-weight: bold;
 }
+
+.page-footer-spacer {
+    height: 80px;
+}
+
+.visitor-counter {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    padding: 15px 20px;
+    border-top: 2px solid #333;
+    background: #1a1a1a;
+    z-index: 999;
+}
+
+.counter-label {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 8px;
+}
+
+.counter-wrapper {
+    display: inline-block;
+}
+
+.counter-wrapper img {
+    display: block;
+    margin: 0 auto;
+}
+
+.placeholder-text {
+    color: #666;
+    font-size: 13px;
+}
