@@ -1,6 +1,6 @@
 // ===================== 全局游戏配置 (v3.0 - 102个事件) =====================
 const GAME_CONFIG = {
-    totalEventNum: 25, // 游戏回合数上调至25，体验长篇剧情
+    totalEventNum: 24, // 游戏回合数上调至25，体验长篇剧情
     initStatus: {
         health: 70,  // 初始健康
         spirit: 70,  // 初始精神
