@@ -570,3 +570,47 @@ function restartGame() {
 window.onload = () => {
     initStatus();
 };
+
+function copyPageLink() {
+    const pageUrl = window.location.href;
+
+    navigator.clipboard.writeText(pageUrl)
+        .then(() => {
+            showCopyFeedback();
+        })
+        .catch(err => {
+            console.error('复制失败:', err);
+            fallbackCopyText(pageUrl);
+        });
+}
+
+function showCopyFeedback() {
+    const feedback = document.getElementById('copyFeedback');
+    if (feedback) {
+        feedback.style.display = 'block';
+        setTimeout(() => {
+            feedback.style.display = 'none';
+        }, 2000);
+    }
+}
+
+function fallbackCopyText(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        document.execCommand('copy');
+        showCopyFeedback();
+    } catch (err) {
+        console.error('降级复制失败:', err);
+    }
+    document.body.removeChild(textarea);
+}
+
+function openQuestionnaire() {
+    const questionnaireUrl = 'https://wj.qq.com/s2/25678149/c49b/';
+    window.open(questionnaireUrl, '_blank');
+}

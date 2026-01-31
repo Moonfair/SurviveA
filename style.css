@@ -201,3 +201,48 @@ body {
         animation: octocat-wave 560ms ease-in-out;
     }
 }
+
+.secondary-buttons-container {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.secondary-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.share-btn-small {
+    background: #3498db;
+}
+
+.share-btn-small:hover {
+    background: #2980b9;
+}
+
+.suggest-btn-small {
+    background: #f39c12;
+}
+
+.suggest-btn-small:hover {
+    background: #e67e22;
+}
+
+.copy-feedback {
+    display: none;
+    background: #2ecc71;
+    color: #fff;
+    text-align: center;
+    padding: 10px;
+    border-radius: 8px;
+    margin-top: 10px;
+    font-size: 14px;
+    font-weight: bold;
+}
